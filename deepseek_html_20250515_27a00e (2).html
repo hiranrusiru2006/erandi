@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Access Management System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+    <style>
+        :root {
+            --primary-color: #4e73df;
+            --secondary-color: #f8f9fc;
+            --accent-color: #2e59d9;
+            --text-color: #5a5c69;
+            --light-gray: #f8f9fc;
+            --dark-gray: #d1d3e2;
+        }
+        
+        body {
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--light-gray);
+            color: var(--text-color);
+        }
+        
+        .sidebar {
+            background: linear-gradient(180deg, var(--primary-color) 10%, #224abe 100%);
+            min-height: 100vh;
+            color: white;
+            transition: all 0.3s;
+        }
+        
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            padding: 1rem;
+            font-weight: 600;
+            border-left: 0.25rem solid transparent;
+        }
+        
+        .sidebar .nav-link:hover {
+            color: white;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar .nav-link.active {
+            color: white;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-left: 0.25rem solid white;
+        }
+        
+        .sidebar .nav-link i {
+            margin-right: 0.5rem;
+        }
+        
+        .topbar {
+            height: 4.375rem;
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+            background-color: white;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 0.35rem;
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+        }
+        
+        .card-header {
+            background-color: #f8f9fc;
+            border-bottom: 1px solid #e3e6f0;
+            font-weight: 600;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+        
+        .table-responsive {
+            overflow-x: auto;
+        }
+        
+        .video-card {
+            transition: transform 0.3s;
+        }
+        
+        .video-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .user-badge {
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .loading-spinner {
+            display: none;
+            width: 3rem;
+            height: 3rem;
+        }
+        
+        .video-player-container {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            height: 0;
+            overflow: hidden;
+        }
+        
+        .video-player-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+<body class="d-flex">
+    <!-- Sidebar -->
+    <div class="sidebar d-flex flex-column flex-shrink-0 p-3" style="width: 250px;">
+        <a href="#" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none">
+            <span class="fs-4">Video LMS</span>
+        </a>
+        <hr>
+        <ul class="nav nav-pills flex-column mb-auto">
+            <li class="nav-item">
+                <a href="#" class="nav-link active" id="dashboard-tab">
+                    <i class="fas fa-fw fa-tachometer-alt"></i>
+                    Dashboard
+                </a>
+            </li>
+            <li>
+                <a href="#" class="nav-link" id="video-access-tab">
+                    <i class="fas fa-fw fa-video"></i>
+                    Video Access
+                </a>
+            </li>
+            <li>
+                <a href="#" class="nav-link" id="users-tab">
+                    <i class="fas fa-fw fa-users"></i>
+                    Users
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Main Content -->
+    <div class="d-flex flex-column flex-grow-1">
+        <!-- Topbar -->
+        <nav class="topbar navbar navbar-expand navbar-light bg-white mb-4 static-top">
+            <div class="container-fluid">
+                <button class="btn btn-link d-md-none rounded-circle mr-3">
+                    <i class="fa fa-bars"></i>
+                </button>
+                
+                <h1 class="h3 mb-0 text-gray-800" id="page-title">Dashboard</h1>
+                
+                <ul class="navbar-nav ml-auto">
+                    <li class="nav-item dropdown no-arrow">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                            <span class="mr-2 d-none d-lg-inline text-gray-600 small">Guest User</span>
+                            <div class="user-badge">
+                                <i class="fas fa-user"></i>
+                            </div>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Content Sections -->
+        <div class="container-fluid">
+            <!-- Dashboard Section -->
+            <div id="dashboard-section">
+                <div class="row">
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card border-left-primary shadow h-100 py-2">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                            Total Videos</div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="total-videos">140</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-video fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card border-left-success shadow h-100 py-2">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                            Registered Users</div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="total-users">0</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-users fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card border-left-info shadow h-100 py-2">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                            Access Grants</div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="total-access-grants">0</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-key fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card border-left-warning shadow h-100 py-2">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                            Lessons</div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800">7</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-book fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow mb-4">
+                            <div class="card-header py-3">
+                                <h6 class="m-0 font-weight-bold text-primary">Recent Access Grants</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-bordered" id="recent-access-table" width="100%" cellspacing="0">
+                                        <thead>
+                                            <tr>
+                                                <th>User</th>
+                                                <th>Video</th>
+                                                <th>Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Will be populated by JavaScript -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow mb-4">
+                            <div class="card-header py-3">
+                                <h6 class="m-0 font-weight-bold text-primary">Quick Actions</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-4">
+                                        <div class="card bg-primary text-white shadow video-card" onclick="showSection('video-access-section')">
+                                            <div class="card-body">
+                                                Manage Video Access
+                                                <div class="text-white-50 small">Add/remove user access</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-4">
+                                        <div class="card bg-success text-white shadow video-card" onclick="showSection('users-section')">
+                                            <div class="card-body">
+                                                User Management
+                                                <div class="text-white-50 small">View all users</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video Access Management Section -->
+            <div id="video-access-section" style="display: none;">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                        <h6 class="m-0 font-weight-bold text-primary">Video Access Management</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="lesson-select">Select Lesson</label>
+                                    <select class="form-control" id="lesson-select">
+                                        <option value="">-- Select Lesson --</option>
+                                        <option value="1">Lesson 1</option>
+                                        <option value="2">Lesson 2</option>
+                                        <option value="3">Lesson 3</option>
+                                        <option value="4">Lesson 4</option>
+                                        <option value="5">Lesson 5</option>
+                                        <option value="6">Lesson 6</option>
+                                        <option value="7">Lesson 7</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="video-select">Select Video</label>
+                                    <select class="form-control" id="video-select" disabled>
+                                        <option value="">-- Select Video --</option>
+                                        <!-- Will be populated by JavaScript -->
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-4" id="video-access-details" style="display: none;">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="m-0 font-weight-bold text-primary">Grant Access</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="form-group">
+                                            <label for="user-email">User Email</label>
+                                            <input type="email" class="form-control" id="user-email" placeholder="Enter user email">
+                                        </div>
+                                        <button class="btn btn-primary mt-2" id="grant-access-btn">Grant Access</button>
+                                        <div class="alert alert-success mt-3" id="grant-success" style="display: none;"></div>
+                                        <div class="alert alert-danger mt-3" id="grant-error" style="display: none;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h6 class="m-0 font-weight-bold text-primary">Users with Access</h6>
+                                        <div class="spinner-border spinner-border-sm text-primary loading-spinner" id="users-loading" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-bordered" id="access-table" width="100%" cellspacing="0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Email</th>
+                                                        <th>Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <!-- Will be populated by JavaScript -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Section -->
+            <div id="users-section" style="display: none;">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                        <h6 class="m-0 font-weight-bold text-primary">User Management</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="users-table" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>Email</th>
+                                        <th>Registered</th>
+                                        <th>Last Login</th>
+                                        <th>Access Count</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video Player Section (for users) -->
+            <div id="video-player-section" style="display: none;">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                        <h6 class="m-0 font-weight-bold text-primary" id="video-title"></h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-danger" id="access-denied-alert" style="display: none;">
+                            You don't have access to this video. Please contact the administrator.
+                        </div>
+                        <div id="video-container" style="display: none;">
+                            <div class="video-player-container">
+                                <iframe id="youtube-player" src="" frameborder="0" allowfullscreen></iframe>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyARwGTixNG33wT1DncMcAq8n5OcZMsgkTE",
+            authDomain: "erandi-559a3.firebaseapp.com",
+            databaseURL: "https://erandi-559a3-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "erandi-559a3",
+            storageBucket: "erandi-559a3.firebasestorage.app",
+            messagingSenderId: "534300290611",
+            appId: "1:534300290611:web:8c96172f12741539633d46"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // DOM elements
+        const currentUserEmail = document.getElementById('current-user-email');
+        const dashboardSection = document.getElementById('dashboard-section');
+        const videoAccessSection = document.getElementById('video-access-section');
+        const usersSection = document.getElementById('users-section');
+        const videoPlayerSection = document.getElementById('video-player-section');
+        const pageTitle = document.getElementById('page-title');
+        const lessonSelect = document.getElementById('lesson-select');
+        const videoSelect = document.getElementById('video-select');
+        const videoAccessDetails = document.getElementById('video-access-details');
+        const userEmailInput = document.getElementById('user-email');
+        const grantAccessBtn = document.getElementById('grant-access-btn');
+        const grantSuccess = document.getElementById('grant-success');
+        const grantError = document.getElementById('grant-error');
+        const accessTable = document.getElementById('access-table').getElementsByTagName('tbody')[0];
+        const usersTable = document.getElementById('users-table').getElementsByTagName('tbody')[0];
+        const recentAccessTable = document.getElementById('recent-access-table').getElementsByTagName('tbody')[0];
+        const totalUsersElement = document.getElementById('total-users');
+        const totalAccessGrantsElement = document.getElementById('total-access-grants');
+        const videoTitle = document.getElementById('video-title');
+        const videoContainer = document.getElementById('video-container');
+        const accessDeniedAlert = document.getElementById('access-denied-alert');
+        const youtubePlayer = document.getElementById('youtube-player');
+        const usersLoading = document.getElementById('users-loading');
+
+        // Video data structure
+        const videos = {
+            "1": Array.from({length: 20}, (_, i) => `L1V${i+1}`),
+            "2": Array.from({length: 20}, (_, i) => `L2V${i+1}`),
+            "3": Array.from({length: 20}, (_, i) => `L3V${i+1}`),
+            "4": Array.from({length: 20}, (_, i) => `L4V${i+1}`),
+            "5": Array.from({length: 20}, (_, i) => `L5V${i+1}`),
+            "6": Array.from({length: 20}, (_, i) => `L6V${i+1}`),
+            "7": Array.from({length: 20}, (_, i) => `L7V${i+1}`)
+        };
+
+        // YouTube video IDs (placeholder - replace with your actual video IDs)
+        const youtubeVideoIds = {
+            "L1V1": "dQw4w9WgXcQ",
+            "L1V2": "dQw4w9WgXcQ",
+            // Add all other video IDs here...
+            // This is just a placeholder - in a real app you'd have all 140 video IDs mapped
+        };
+
+        // Global variables
+        let currentVideoId = null;
+
+        // Initialize the app
+        function initApp() {
+            // Sign in anonymously to access Firestore
+            auth.signInAnonymously()
+                .then(() => {
+                    // Show dashboard
+                    showSection('dashboard-section');
+                    
+                    // Load data
+                    loadDashboardData();
+                    
+                    // Check if URL has video parameter
+                    checkVideoAccessFromURL();
+                })
+                .catch(error => {
+                    console.error("Error signing in anonymously:", error);
+                });
+            
+            // Set up event listeners
+            setupEventListeners();
+        }
+
+        // Check if URL has video parameter
+        function checkVideoAccessFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const videoId = urlParams.get('video');
+            
+            if (videoId) {
+                showVideoPlayer(videoId);
+            }
+        }
+
+        // Show video player
+        function showVideoPlayer(videoId) {
+            currentVideoId = videoId;
+            showSection('video-player-section');
+            videoTitle.textContent = `Video: ${videoId}`;
+            
+            // Since we're not checking access anymore, just show the video
+            accessDeniedAlert.style.display = 'none';
+            videoContainer.style.display = 'block';
+            
+            // Set YouTube video (replace with your actual video ID mapping)
+            const youtubeId = youtubeVideoIds[videoId] || 'dQw4w9WgXcQ'; // Default video if not found
+            youtubePlayer.src = `https://www.youtube.com/embed/${youtubeId}?autoplay=1`;
+        }
+
+        // Set up event listeners
+        function setupEventListeners() {
+            // Navigation tabs
+            document.getElementById('dashboard-tab').addEventListener('click', () => showSection('dashboard-section'));
+            document.getElementById('video-access-tab').addEventListener('click', () => showSection('video-access-section'));
+            document.getElementById('users-tab').addEventListener('click', () => showSection('users-section'));
+            
+            // Lesson select change
+            lessonSelect.addEventListener('change', () => {
+                const lesson = lessonSelect.value;
+                videoSelect.disabled = !lesson;
+                
+                if (lesson) {
+                    // Populate video select
+                    videoSelect.innerHTML = '<option value="">-- Select Video --</option>';
+                    videos[lesson].forEach(video => {
+                        const option = document.createElement('option');
+                        option.value = video;
+                        option.textContent = `Video ${video.substring(2)}`;
+                        videoSelect.appendChild(option);
+                    });
+                }
+            });
+            
+            // Video select change
+            videoSelect.addEventListener('change', () => {
+                currentVideoId = videoSelect.value;
+                videoAccessDetails.style.display = currentVideoId ? 'flex' : 'none';
+                
+                if (currentVideoId) {
+                    loadVideoAccessList(currentVideoId);
+                }
+            });
+            
+            // Grant access button
+            grantAccessBtn.addEventListener('click', grantVideoAccess);
+        }
+
+        // Show a section and hide others
+        function showSection(sectionId) {
+            dashboardSection.style.display = 'none';
+            videoAccessSection.style.display = 'none';
+            usersSection.style.display = 'none';
+            videoPlayerSection.style.display = 'none';
+            
+            document.getElementById(sectionId).style.display = 'block';
+            pageTitle.textContent = document.querySelector(`#${sectionId.replace('-section', '-tab')}`).textContent.trim();
+        }
+
+        // Load dashboard data
+        function loadDashboardData() {
+            // Load total users count
+            db.collection('users').get()
+                .then(querySnapshot => {
+                    totalUsersElement.textContent = querySnapshot.size;
+                });
+            
+            // Load total access grants count
+            db.collection('videoAccess').get()
+                .then(querySnapshot => {
+                    totalAccessGrantsElement.textContent = querySnapshot.size;
+                });
+            
+            // Load recent access grants
+            db.collection('videoAccess').orderBy('grantedAt', 'desc').limit(5).get()
+                .then(querySnapshot => {
+                    recentAccessTable.innerHTML = '';
+                    
+                    querySnapshot.forEach(doc => {
+                        const data = doc.data();
+                        const row = recentAccessTable.insertRow();
+                        
+                        // Get user email
+                        db.collection('users').doc(data.userId).get()
+                            .then(userDoc => {
+                                const email = userDoc.data().email;
+                                
+                                // Insert cells
+                                const emailCell = row.insertCell(0);
+                                emailCell.textContent = email;
+                                
+                                const videoCell = row.insertCell(1);
+                                videoCell.textContent = data.videoId;
+                                
+                                const dateCell = row.insertCell(2);
+                                dateCell.textContent = new Date(data.grantedAt.seconds * 1000).toLocaleString();
+                            });
+                    });
+                });
+        }
+
+        // Load users with access to a specific video
+        function loadVideoAccessList(videoId) {
+            usersLoading.style.display = 'inline-block';
+            accessTable.innerHTML = '';
+            
+            db.collection('videoAccess').where('videoId', '==', videoId).get()
+                .then(querySnapshot => {
+                    usersLoading.style.display = 'none';
+                    
+                    if (querySnapshot.empty) {
+                        const row = accessTable.insertRow();
+                        const cell = row.insertCell(0);
+                        cell.colSpan = 2;
+                        cell.textContent = 'No users have access to this video yet.';
+                        return;
+                    }
+                    
+                    querySnapshot.forEach(doc => {
+                        const data = doc.data();
+                        
+                        // Get user email
+                        db.collection('users').doc(data.userId).get()
+                            .then(userDoc => {
+                                const email = userDoc.data().email;
+                                
+                                const row = accessTable.insertRow();
+                                
+                                const emailCell = row.insertCell(0);
+                                emailCell.textContent = email;
+                                
+                                const actionCell = row.insertCell(1);
+                                const revokeBtn = document.createElement('button');
+                                revokeBtn.className = 'btn btn-danger btn-sm';
+                                revokeBtn.textContent = 'Revoke';
+                                revokeBtn.addEventListener('click', () => revokeAccess(doc.id, email, videoId));
+                                actionCell.appendChild(revokeBtn);
+                            });
+                    });
+                })
+                .catch(error => {
+                    usersLoading.style.display = 'none';
+                    console.error("Error loading video access list:", error);
+                });
+        }
+
+        // Grant access to a video for a user
+        function grantVideoAccess() {
+            const email = userEmailInput.value.trim();
+            
+            if (!email) {
+                grantError.textContent = 'Please enter a valid email address.';
+                grantError.style.display = 'block';
+                return;
+            }
+            
+            if (!currentVideoId) {
+                grantError.textContent = 'Please select a video first.';
+                grantError.style.display = 'block';
+                return;
+            }
+            
+            // First find the user by email
+            db.collection('users').where('email', '==', email).get()
+                .then(querySnapshot => {
+                    if (querySnapshot.empty) {
+                        // Create new user if not found
+                        return db.collection('users').add({
+                            email: email,
+                            registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            lastLoginAt: firebase.firestore.FieldValue.serverTimestamp()
+                        }).then(docRef => {
+                            return docRef.id;
+                        });
+                    } else {
+                        // Update last login time for existing user
+                        const userDoc = querySnapshot.docs[0];
+                        return db.collection('users').doc(userDoc.id).update({
+                            lastLoginAt: firebase.firestore.FieldValue.serverTimestamp()
+                        }).then(() => {
+                            return userDoc.id;
+                        });
+                    }
+                })
+                .then(userId => {
+                    // Check if access already exists
+                    return db.collection('videoAccess')
+                        .where('videoId', '==', currentVideoId)
+                        .where('userId', '==', userId)
+                        .get()
+                        .then(accessQuery => {
+                            if (!accessQuery.empty) {
+                                throw new Error('This user already has access to this video.');
+                            }
+                            
+                            // Grant access
+                            return db.collection('videoAccess').add({
+                                videoId: currentVideoId,
+                                userId: userId,
+                                grantedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                                grantedBy: 'anonymous' // Since we're not tracking specific admins anymore
+                            });
+                        });
+                })
+                .then(() => {
+                    grantSuccess.textContent = `Access granted to ${email} for video ${currentVideoId}`;
+                    grantSuccess.style.display = 'block';
+                    grantError.style.display = 'none';
+                    userEmailInput.value = '';
+                    
+                    // Refresh the access list
+                    loadVideoAccessList(currentVideoId);
+                    
+                    // Update dashboard counts
+                    loadDashboardData();
+                })
+                .catch(error => {
+                    grantError.textContent = error.message;
+                    grantError.style.display = 'block';
+                    grantSuccess.style.display = 'none';
+                });
+        }
+
+        // Revoke access from a user
+        function revokeAccess(accessId, email, videoId) {
+            if (confirm(`Are you sure you want to revoke access to ${videoId} from ${email}?`)) {
+                db.collection('videoAccess').doc(accessId).delete()
+                    .then(() => {
+                        // Refresh the access list
+                        loadVideoAccessList(videoId);
+                        
+                        // Update dashboard counts
+                        loadDashboardData();
+                    })
+                    .catch(error => {
+                        console.error("Error revoking access:", error);
+                        alert("Failed to revoke access. Please try again.");
+                    });
+            }
+        }
+
+        // Load all users
+        function loadAllUsers() {
+            usersTable.innerHTML = '';
+            
+            db.collection('users').get()
+                .then(querySnapshot => {
+                    querySnapshot.forEach(doc => {
+                        const data = doc.data();
+                        const row = usersTable.insertRow();
+                        
+                        // Email
+                        const emailCell = row.insertCell(0);
+                        emailCell.textContent = data.email;
+                        
+                        // Registered date
+                        const registeredCell = row.insertCell(1);
+                        registeredCell.textContent = data.registeredAt ? 
+                            new Date(data.registeredAt.seconds * 1000).toLocaleDateString() : 'N/A';
+                        
+                        // Last login
+                        const lastLoginCell = row.insertCell(2);
+                        lastLoginCell.textContent = data.lastLoginAt ? 
+                            new Date(data.lastLoginAt.seconds * 1000).toLocaleString() : 'Never';
+                        
+                        // Access count
+                        const accessCountCell = row.insertCell(3);
+                        db.collection('videoAccess').where('userId', '==', doc.id).get()
+                            .then(accessQuery => {
+                                accessCountCell.textContent = accessQuery.size;
+                            });
+                        
+                        // Actions
+                        const actionsCell = row.insertCell(4);
+                        const viewBtn = document.createElement('button');
+                        viewBtn.className = 'btn btn-primary btn-sm me-2';
+                        viewBtn.textContent = 'View Access';
+                        viewBtn.addEventListener('click', () => viewUserAccess(doc.id, data.email));
+                        actionsCell.appendChild(viewBtn);
+                    });
+                });
+        }
+
+        // View a user's video access
+        function viewUserAccess(userId, email) {
+            alert(`Viewing access for ${email} would show a modal with their accessible videos.`);
+            // In a full implementation, this would open a modal showing all videos the user has access to
+        }
+
+        // Initialize the app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
